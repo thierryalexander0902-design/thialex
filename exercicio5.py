@@ -1,0 +1,3 @@
+metro=float(input("digite o valor em metros: "))
+centimetros=metros*100
+print(f"{metros} m = {centimetros} cm")
