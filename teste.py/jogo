@@ -1,0 +1,163 @@
+import pygame
+import sys
+
+# Inicialização
+pygame.init()
+
+# Configurações da tela
+LARGURA = 1000
+ALTURA = 500
+tela = pygame.display.set_mode((LARGURA, ALTURA))
+pygame.display.set_caption("Geometry Dash - Python")
+
+# Cores
+PRETO = (0, 0, 0)
+BRANCO = (255, 255, 255)
+AZUL = (0, 150, 255)
+VERMELHO = (255, 50, 50)
+CINZA = (40, 40, 40)
+AMARELO = (255, 220, 0)
+
+# Física
+GRAVIDADE = 0.8
+FORCA_PULO = -17
+VEL_JOGO = 5.1
+
+# Jogador
+jogador = pygame.Rect(100, ALTURA - 100, 40, 40)
+vel_y = 0
+no_chao = False
+vivo = True
+pontuacao = 0
+
+# Chão
+chao = pygame.Rect(0, ALTURA - 60, LARGURA, 60)
+
+# Obstáculos (x, y, largura, altura, tipo)
+# tipo: "bloco" ou "espinho"
+obstaculos = [
+    {"rect": pygame.Rect(500, ALTURA - 100, 40, 40), "tipo": "bloco"},
+    {"rect": pygame.Rect(700, ALTURA - 80, 30, 20), "tipo": "espinho"},
+    {"rect": pygame.Rect(950, ALTURA - 140, 40, 80), "tipo": "bloco"},
+    {"rect": pygame.Rect(1200, ALTURA - 80, 30, 20), "tipo": "espinho"},
+    {"rect": pygame.Rect(1400, ALTURA - 100, 40, 40), "tipo": "bloco"},
+    {"rect": pygame.Rect(1600, ALTURA - 80, 30, 20), "tipo": "espinho"},
+    {"rect": pygame.Rect(1800, ALTURA - 160, 40, 100), "tipo": "bloco"},
+    {"rect": pygame.Rect(2100, ALTURA - 80, 30, 20), "tipo": "espinho"},
+    {"rect": pygame.Rect(2300, ALTURA - 120, 60, 60), "tipo": "bloco"},
+    {"rect": pygame.Rect(2600, ALTURA - 80, 30, 20), "tipo": "espinho"},
+]
+
+fonte = pygame.font.SysFont("Arial", 32)
+fonte_pequena = pygame.font.SysFont("Arial", 24)
+
+relogio = pygame.time.Clock()
+
+def reiniciar():
+    global jogador, vel_y, vivo, pontuacao, obstaculos
+    jogador.x = 100
+    jogador.y = ALTURA - 100
+    vel_y = 0
+    vivo = True
+    pontuacao = 0
+    # Resetar posições dos obstáculos
+    obstaculos = [
+        {"rect": pygame.Rect(500, ALTURA - 100, 40, 40), "tipo": "bloco"},
+        {"rect": pygame.Rect(700, ALTURA - 80, 30, 20), "tipo": "espinho"},
+        {"rect": pygame.Rect(950, ALTURA - 140, 40, 80), "tipo": "bloco"},
+        {"rect": pygame.Rect(1200, ALTURA - 80, 30, 20), "tipo": "espinho"},
+        {"rect": pygame.Rect(1400, ALTURA - 100, 40, 40), "tipo": "bloco"},
+        {"rect": pygame.Rect(1600, ALTURA - 80, 30, 20), "tipo": "espinho"},
+        {"rect": pygame.Rect(1800, ALTURA - 160, 40, 100), "tipo": "bloco"},
+        {"rect": pygame.Rect(2100, ALTURA - 80, 30, 20), "tipo": "espinho"},
+        {"rect": pygame.Rect(2300, ALTURA - 120, 60, 60), "tipo": "bloco"},
+        {"rect": pygame.Rect(2600, ALTURA - 80, 30, 20), "tipo": "espinho"},
+    ]
+
+# Loop principal
+while True:
+    for evento in pygame.event.get():
+        if evento.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+        if evento.type == pygame.KEYDOWN:
+            if evento.key == pygame.K_SPACE or evento.key == pygame.K_UP:
+                if no_chao and vivo:
+                    vel_y = FORCA_PULO
+                    no_chao = False
+            if evento.key == pygame.K_r:
+                reiniciar()
+
+    if vivo:
+        # Física do jogador
+        vel_y += GRAVIDADE
+        jogador.y += vel_y
+
+        # Colisão com o chão
+        if jogador.colliderect(chao):
+            jogador.bottom = chao.top
+            vel_y = 0
+            no_chao = True
+        else:
+            no_chao = False
+
+        # Mover obstáculos (efeito de scroll)
+        for obs in obstaculos:
+            obs["rect"].x -= VEL_JOGO
+
+        # Pontuação
+        pontuacao += 1
+
+        # Colisão com obstáculos
+        for obs in obstaculos:
+            if jogador.colliderect(obs["rect"]):
+                vivo = False
+
+        # Remover obstáculos que saíram da tela e adicionar novos (loop infinito simples)
+        if obstaculos and obstaculos[0]["rect"].right < 0:
+            obstaculos.pop(0)
+            # Adiciona um novo no final
+            ultimo_x = obstaculos[-1]["rect"].x if obstaculos else 800
+            novo_x = ultimo_x + 300 + (pontuacao % 200)
+            tipo = "espinho" if pontuacao % 3 == 0 else "bloco"
+            if tipo == "espinho":
+                obstaculos.append({"rect": pygame.Rect(novo_x, ALTURA - 80, 30, 20), "tipo": "espinho"})
+            else:
+                altura = 40 + (pontuacao % 60)
+                obstaculos.append({"rect": pygame.Rect(novo_x, ALTURA - 60 - altura, 40, altura), "tipo": "bloco"})
+
+    # Desenho
+    tela.fill(CINZA)
+
+    # Chão
+    pygame.draw.rect(tela, (60, 60, 60), chao)
+    pygame.draw.line(tela, BRANCO, (0, ALTURA - 60), (LARGURA, ALTURA - 60), 2)
+
+    # Jogador (cubo)
+    cor_jogador = AZUL if vivo else VERMELHO
+    pygame.draw.rect(tela, cor_jogador, jogador)
+    # Borda do cubo
+    pygame.draw.rect(tela, BRANCO, jogador, 2)
+
+    # Obstáculos
+    for obs in obstaculos:
+        if obs["tipo"] == "bloco":
+            pygame.draw.rect(tela, AMARELO, obs["rect"])
+            pygame.draw.rect(tela, BRANCO, obs["rect"], 2)
+        else:  # espinho (triângulo simples)
+            x, y, w, h = obs["rect"]
+            pontos = [(x, y + h), (x + w // 2, y), (x + w, y + h)]
+            pygame.draw.polygon(tela, VERMELHO, pontos)
+
+    # Texto
+    texto_pontos = fonte.render(f"Pontuação: {pontuacao // 10}", True, BRANCO)
+    tela.blit(texto_pontos, (20, 20))
+
+    if not vivo:
+        texto_gameover = fonte.render("GAME OVER", True, VERMELHO)
+        texto_reiniciar = fonte_pequena.render("Pressione R para reiniciar", True, BRANCO)
+        tela.blit(texto_gameover, (LARGURA // 2 - 100, ALTURA // 2 - 40))
+        tela.blit(texto_reiniciar, (LARGURA // 2 - 130, ALTURA // 2 + 10))
+
+    pygame.display.flip()
+    relogio.tick(60)

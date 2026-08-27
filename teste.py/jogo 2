@@ -1,0 +1,218 @@
+import pygame
+import sys
+
+pygame.init()
+
+# Configurações
+LARGURA = 800
+ALTURA = 400
+tela = pygame.display.set_mode((LARGURA, ALTURA))
+pygame.display.set_caption("Geometry Dash - Dino")
+
+# Cores
+BRANCO = (255, 255, 255)
+VERMELHO = (255, 50, 50)
+CINZA = (40, 40, 40)
+AMARELO = (255, 220, 0)
+DINO_COR = (83, 83, 83)          # Cor clássica do dinossauro do Chrome
+
+# Física
+GRAVIDADE = 0.85
+FORCA_PULO = -15
+VEL_JOGO = 4.9
+
+# Jogador
+jogador = pygame.Rect(100, ALTURA - 100, 44, 47)  # tamanho aproximado do dino
+vel_y = 0
+no_chao = False
+vivo = True
+pontuacao = 0
+
+# Sistema de pulo responsivo
+coyote_time = 0
+jump_buffer = 0
+COYOTE_MAX = 6
+BUFFER_MAX = 8
+
+# Animação das pernas
+frame_animacao = 0
+contador_animacao = 0
+
+chao = pygame.Rect(0, ALTURA - 60, LARGURA, 60)
+
+obstaculos = [
+    {"rect": pygame.Rect(500, ALTURA - 100, 40, 40), "tipo": "bloco"},
+    {"rect": pygame.Rect(700, ALTURA - 80, 30, 20), "tipo": "espinho"},
+    {"rect": pygame.Rect(950, ALTURA - 140, 40, 80), "tipo": "bloco"},
+    {"rect": pygame.Rect(1200, ALTURA - 80, 30, 20), "tipo": "espinho"},
+    {"rect": pygame.Rect(1400, ALTURA - 100, 40, 40), "tipo": "bloco"},
+    {"rect": pygame.Rect(1600, ALTURA - 80, 30, 20), "tipo": "espinho"},
+    {"rect": pygame.Rect(1800, ALTURA - 160, 40, 100), "tipo": "bloco"},
+    {"rect": pygame.Rect(2100, ALTURA - 80, 30, 20), "tipo": "espinho"},
+    {"rect": pygame.Rect(2300, ALTURA - 120, 60, 60), "tipo": "bloco"},
+    {"rect": pygame.Rect(2600, ALTURA - 80, 30, 20), "tipo": "espinho"},
+]
+
+fonte = pygame.font.SysFont("Arial", 32)
+fonte_pequena = pygame.font.SysFont("Arial", 24)
+relogio = pygame.time.Clock()
+
+def desenhar_dino(surface, x, y, frame=0, morto=False):
+    """Desenha o dinossauro estilo Chrome"""
+    cor = VERMELHO if morto else DINO_COR
+
+    # Corpo principal
+    pygame.draw.rect(surface, cor, (x + 8, y + 12, 28, 22))
+
+    # Cabeça
+    pygame.draw.rect(surface, cor, (x + 28, y + 4, 16, 16))
+    # Focinho
+    pygame.draw.rect(surface, cor, (x + 40, y + 10, 8, 8))
+    # Olho
+    pygame.draw.rect(surface, BRANCO, (x + 36, y + 8, 4, 4))
+    if not morto:
+        pygame.draw.rect(surface, (0, 0, 0), (x + 38, y + 9, 2, 2))  # pupila
+
+    # Braço
+    pygame.draw.rect(surface, cor, (x + 20, y + 20, 6, 10))
+
+    # Pernas (animação simples)
+    if frame == 0:
+        # Perna traseira
+        pygame.draw.rect(surface, cor, (x + 10, y + 32, 8, 14))
+        # Perna dianteira
+        pygame.draw.rect(surface, cor, (x + 24, y + 32, 8, 12))
+    else:
+        # Perna traseira
+        pygame.draw.rect(surface, cor, (x + 12, y + 32, 8, 12))
+        # Perna dianteira
+        pygame.draw.rect(surface, cor, (x + 22, y + 32, 8, 14))
+
+    # Cauda
+    pygame.draw.rect(surface, cor, (x, y + 18, 10, 8))
+    pygame.draw.rect(surface, cor, (x - 4, y + 14, 8, 6))
+
+def reiniciar():
+    global jogador, vel_y, vivo, pontuacao, obstaculos, coyote_time, jump_buffer, frame_animacao
+    jogador.x = 100
+    jogador.y = ALTURA - 100
+    vel_y = 0
+    vivo = True
+    pontuacao = 0
+    coyote_time = 0
+    jump_buffer = 0
+    frame_animacao = 0
+    obstaculos = [
+        {"rect": pygame.Rect(500, ALTURA - 100, 40, 40), "tipo": "bloco"},
+        {"rect": pygame.Rect(700, ALTURA - 80, 30, 20), "tipo": "espinho"},
+        {"rect": pygame.Rect(950, ALTURA - 140, 40, 80), "tipo": "bloco"},
+        {"rect": pygame.Rect(1200, ALTURA - 80, 30, 20), "tipo": "espinho"},
+        {"rect": pygame.Rect(1400, ALTURA - 100, 40, 40), "tipo": "bloco"},
+        {"rect": pygame.Rect(1600, ALTURA - 80, 30, 20), "tipo": "espinho"},
+        {"rect": pygame.Rect(1800, ALTURA - 160, 40, 100), "tipo": "bloco"},
+        {"rect": pygame.Rect(2100, ALTURA - 80, 30, 20), "tipo": "espinho"},
+        {"rect": pygame.Rect(2300, ALTURA - 120, 60, 60), "tipo": "bloco"},
+        {"rect": pygame.Rect(2600, ALTURA - 80, 30, 20), "tipo": "espinho"},
+    ]
+
+while True:
+    for evento in pygame.event.get():
+        if evento.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+        if evento.type == pygame.KEYDOWN:
+            if evento.key == pygame.K_r:
+                reiniciar()
+
+    teclas = pygame.key.get_pressed()
+
+    if vivo:
+        # Sistema de pulo responsivo
+        if teclas[pygame.K_SPACE] or teclas[pygame.K_UP]:
+            jump_buffer = BUFFER_MAX
+
+        if no_chao:
+            coyote_time = COYOTE_MAX
+        else:
+            coyote_time = max(0, coyote_time - 1)
+
+        if jump_buffer > 0 and coyote_time > 0:
+            vel_y = FORCA_PULO
+            jump_buffer = 0
+            coyote_time = 0
+            no_chao = False
+
+        jump_buffer = max(0, jump_buffer - 1)
+
+        # Física
+        vel_y += GRAVIDADE
+        jogador.y += vel_y
+
+        if jogador.colliderect(chao):
+            jogador.bottom = chao.top
+            vel_y = 0
+            no_chao = True
+        else:
+            no_chao = False
+
+        # Animação das pernas (só quando está no chão)
+        if no_chao:
+            contador_animacao += 1
+            if contador_animacao >= 6:
+                contador_animacao = 0
+                frame_animacao = 1 - frame_animacao
+        else:
+            frame_animacao = 0  # pernas juntas no ar
+
+        # Mover obstáculos
+        for obs in obstaculos:
+            obs["rect"].x -= VEL_JOGO
+
+        pontuacao += 1
+
+        # Colisão
+        for obs in obstaculos:
+            if jogador.colliderect(obs["rect"]):
+                vivo = False
+
+        # Gerar novos obstáculos
+        if obstaculos and obstaculos[0]["rect"].right < 0:
+            obstaculos.pop(0)
+            ultimo_x = obstaculos[-1]["rect"].x if obstaculos else 800
+            novo_x = ultimo_x + 280 + (pontuacao % 180)
+            tipo = "espinho" if pontuacao % 3 == 0 else "bloco"
+            if tipo == "espinho":
+                obstaculos.append({"rect": pygame.Rect(novo_x, ALTURA - 80, 30, 20), "tipo": "espinho"})
+            else:
+                altura = 40 + (pontuacao % 70)
+                obstaculos.append({"rect": pygame.Rect(novo_x, ALTURA - 60 - altura, 40, altura), "tipo": "bloco"})
+
+    # Desenho
+    tela.fill(CINZA)
+    pygame.draw.rect(tela, (60, 60, 60), chao)
+    pygame.draw.line(tela, BRANCO, (0, ALTURA - 60), (LARGURA, ALTURA - 60), 2)
+
+    # Desenha o dinossauro
+    desenhar_dino(tela, jogador.x, jogador.y, frame_animacao, morto=not vivo)
+
+    # Obstáculos
+    for obs in obstaculos:
+        if obs["tipo"] == "bloco":
+            pygame.draw.rect(tela, AMARELO, obs["rect"])
+            pygame.draw.rect(tela, BRANCO, obs["rect"], 2)
+        else:
+            x, y, w, h = obs["rect"]
+            pontos = [(x, y + h), (x + w // 2, y), (x + w, y + h)]
+            pygame.draw.polygon(tela, VERMELHO, pontos)
+
+    texto_pontos = fonte.render(f"Pontuação: {pontuacao // 10}", True, BRANCO)
+    tela.blit(texto_pontos, (20, 20))
+
+    if not vivo:
+        texto_gameover = fonte.render("GAME OVER", True, VERMELHO)
+        texto_reiniciar = fonte_pequena.render("Pressione R para reiniciar", True, BRANCO)
+        tela.blit(texto_gameover, (LARGURA // 2 - 100, ALTURA // 2 - 40))
+        tela.blit(texto_reiniciar, (LARGURA // 2 - 130, ALTURA // 2 + 10))
+
+    pygame.display.flip()
+    relogio.tick(60)
